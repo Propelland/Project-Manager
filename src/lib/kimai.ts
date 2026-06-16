@@ -161,6 +161,35 @@ export async function syncKimaiProjects() {
   return await prisma.project.findMany();
 }
 
+// Returns vacation percentages grouped by personId -> weekStart (YYYY-MM-DD) -> percentage
+// Each absence day = 20%, half_day = 10%
+export async function getAbsencesGrouped(): Promise<Record<string, Record<string, number>>> {
+  const pool = await getKimaiConnection();
+  const [rows] = await pool.execute(`
+    SELECT user_id, date, half_day
+    FROM kimai2_absence
+    WHERE type = 'holiday'
+  `);
+
+  const result: Record<string, Record<string, number>> = {};
+
+  for (const row of rows as { user_id: number; date: Date; half_day: number }[]) {
+    const personId = row.user_id.toString();
+    const d = new Date(row.date);
+    // Snap to Monday using local time to match the UI's snapToWeek logic
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    const weekKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const pct = row.half_day ? 10 : 20;
+    if (!result[personId]) result[personId] = {};
+    result[personId][weekKey] = (result[personId][weekKey] || 0) + pct;
+  }
+
+  return result;
+}
+
 // Function to test Kimai connection
 export async function testKimaiConnection() {
   try {

@@ -93,6 +93,8 @@ interface CalendarState {
   assignments: Assignment[];
   selectedWeek: Date;
   savedFilters: { id: string; name: string; personIds: string[] }[];
+  // personId -> weekStart (YYYY-MM-DD) -> PTO percentage
+  vacations: Record<string, Record<string, number>>;
 }
 
 interface CalendarActions {
@@ -126,6 +128,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
   persist(
     (set, get) => ({
       selectedWeek: snapToWeek(new Date()),
+      vacations: {},
       people: [],
       savedFilters: [],
   projects: [],
@@ -446,19 +449,23 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
         // Load projects
         const projectsResponse = await fetch('/api/projects');
         const projectsData = await projectsResponse.json();
-        
+
         // Load users
         const usersResponse = await fetch('/api/users');
         const usersData = await usersResponse.json();
-        
+
         // Load assignments
         const assignmentsResponse = await fetch('/api/assignments');
         const assignmentsData = await assignmentsResponse.json();
-        
+
         // Load filters
         const filtersResponse = await fetch('/api/filters');
         const filtersData = await filtersResponse.json();
-        
+
+        // Load vacations from Kimai
+        const vacationsResponse = await fetch('/api/absences');
+        const vacationsData = await vacationsResponse.json();
+
         // Convert assignment dates from strings to Date objects
         const parsedAssignments = assignmentsData.assignments.map((assignment: {
           startDate: string;
@@ -469,12 +476,13 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
           startDate: new Date(assignment.startDate),
           endDate: new Date(assignment.endDate)
         }));
-        
-        set({ 
-          people: (usersData.users as Person[] || []).sort((a: Person, b: Person) => a.name.localeCompare(b.name)), 
-          projects: (projectsData.projects as Project[] || []).sort((a: Project, b: Project) => a.name.localeCompare(b.name)), 
+
+        set({
+          people: (usersData.users as Person[] || []).sort((a: Person, b: Person) => a.name.localeCompare(b.name)),
+          projects: (projectsData.projects as Project[] || []).sort((a: Project, b: Project) => a.name.localeCompare(b.name)),
           assignments: parsedAssignments,
-          savedFilters: filtersData.filters || []
+          savedFilters: filtersData.filters || [],
+          vacations: vacationsData.vacations || {},
         });
       } catch (error) {
         console.error('Error loading data from database:', error);

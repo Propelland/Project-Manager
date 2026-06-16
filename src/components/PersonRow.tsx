@@ -21,10 +21,17 @@ interface PersonRowProps {
  */
 export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeksInfo, onPercentageChange, onDeleteAssignment, onAddAssignment, isViewOnly = false }) => {
   const projects = useCalendarStore((state) => state.projects);
+  const vacations = useCalendarStore((state) => state.vacations);
   const [showDropdowns, setShowDropdowns] = useState<{ [weekIndex: number]: boolean }>({});
   const [addingAssignment, setAddingAssignment] = useState<{ [weekIndex: number]: boolean }>({});
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedPercentage, setSelectedPercentage] = useState(50);
+
+  const getWeekPTO = (weekStart: Date): number => {
+    const d = weekStart;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return vacations[person.id]?.[key] || 0;
+  };
 
   // Calculate capacity for a specific week
   const getWeekCapacity = (weekStart: Date, weekEnd: Date): number => {
@@ -67,7 +74,7 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    return maxDailyCapacity;
+    return maxDailyCapacity + getWeekPTO(normalizedWeekStart);
   };
 
   // Get assignments for a specific week
@@ -99,6 +106,7 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
       {weeksInfo.map((week, weekIndex) => {
         const capacity = getWeekCapacity(week.startDate, week.endDate);
         const weekAssignments = getWeekAssignments(week.startDate, week.endDate);
+        const pto = getWeekPTO(week.startDate);
         
         return (
           <div key={weekIndex} className="flex-1 relative bg-gray-50 border rounded-lg p-1 group" style={{ 
@@ -106,8 +114,14 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
           }}>
             {/* Hover tooltip */}
             <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-500 bg-opacity-90 text-white font-medium px-4 py-2 rounded-lg shadow-lg z-50 min-w-[150px] text-center pointer-events-none">
-              {weekAssignments.length > 0 ? (
+              {(weekAssignments.length > 0 || pto > 0) ? (
                 <div className="space-y-1">
+                  {pto > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="flex-1 text-left">🏖️ PTO</span>
+                      <span className="ml-2 font-semibold">{pto}%</span>
+                    </div>
+                  )}
                   {weekAssignments.map((assignment) => {
                     const project = projects.find(p => p.id === assignment.projectId);
                     return (
@@ -171,6 +185,15 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
                   </div>
                   
                   <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {pto > 0 && (
+                      <div className="p-3 bg-teal-50 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-3 h-3 rounded bg-teal-400"></div>
+                          <div className="text-sm text-gray-700">🏖️ PTO</div>
+                        </div>
+                        <div className="text-sm font-semibold text-teal-700">{pto}%</div>
+                      </div>
+                    )}
                     {weekAssignments.map((assignment) => {
                       const project = projects.find(p => p.id === assignment.projectId);
                       return (
@@ -328,7 +351,7 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
                         </div>
                       );
                     })}
-                    {weekAssignments.length === 0 && (
+                    {weekAssignments.length === 0 && pto === 0 && (
                       <div className="p-6 text-sm text-gray-500 text-center bg-gray-50 rounded-lg">
                         No assignments
                       </div>
