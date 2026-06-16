@@ -36,6 +36,23 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   
+  // Check for existing admin cookie on load
+  useEffect(() => {
+    const checkAdminCookie = () => {
+      try {
+        const adminCookie = document.cookie.includes('admin=true');
+        if (adminCookie) {
+          setIsAdmin(true);
+        }
+      } catch (error) {
+        console.error('Error checking admin cookie:', error);
+      }
+    };
+    
+    // Check cookie on component mount
+    checkAdminCookie();
+  }, []);
+  
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
@@ -64,10 +81,15 @@ export default function Home() {
   // Handle admin login
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const ADMIN_USERNAME = 'Propelland';
-    const ADMIN_PASSWORD = 'Facecloth-Catnap-Produce4';
+    const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'Propelland';
+    const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Facecloth-Catnap-Produce4';
     
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      // Set admin cookie with 1 week expiration
+      const expires = new Date();
+      expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
+      document.cookie = `admin=true; expires=${expires.toUTCString()}; path=/;`;
+      
       setIsAdmin(true);
       setShowLoginDialog(false);
       setLoginError('');
@@ -78,6 +100,8 @@ export default function Home() {
   
   // Handle admin logout
   const handleLogout = () => {
+    // Remove admin cookie
+    document.cookie = 'admin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     setIsAdmin(false);
     setUsername('');
     setPassword('');

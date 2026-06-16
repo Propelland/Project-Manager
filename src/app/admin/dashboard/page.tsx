@@ -6,16 +6,36 @@ import { useRouter } from 'next/navigation';
 export default function AdminDashboard() {
   const router = useRouter();
 
+  // Helper function to get cookie value - simple and reliable
+  const getCookie = (name: string) => {
+    try {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) {
+        const part = parts.pop();
+        if (part) {
+          return part.split(';').shift();
+        }
+      }
+    } catch (error) {
+      console.error('Error getting cookie:', error);
+    }
+    return null;
+  };
+
   useEffect(() => {
     // Check if user is authenticated
-    const isAdmin = localStorage.getItem('admin');
+    const isAdmin = getCookie('admin');
+    
     if (isAdmin !== 'true') {
+      // Redirect to login if not authenticated
       router.push('/admin');
     }
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('admin');
+    // Remove admin cookie
+    document.cookie = 'admin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     router.push('/admin');
   };
 

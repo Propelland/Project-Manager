@@ -1,6 +1,6 @@
 # --- STAGE 1: Base ---
-FROM node:20-slim AS base
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+FROM node:20 AS base
+RUN apt-get update && apt-get install -y openssl libc6 && rm -rf /var/lib/apt/lists/*
 
 # --- STAGE 2: Dependencies ---
 FROM base AS deps
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 # Install dependencies (including devDependencies for the build)
-RUN npm ci
+RUN npm install
 # Generate Prisma Client
 RUN npx prisma generate
 
@@ -17,6 +17,16 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Argumentos de construcción para variables NEXT_PUBLIC
+ARG NEXT_PUBLIC_API_KEY
+ARG NEXT_PUBLIC_ADMIN_USERNAME
+ARG NEXT_PUBLIC_ADMIN_PASSWORD
+
+ENV NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
+ENV NEXT_PUBLIC_ADMIN_USERNAME=$NEXT_PUBLIC_ADMIN_USERNAME
+ENV NEXT_PUBLIC_ADMIN_PASSWORD=$NEXT_PUBLIC_ADMIN_PASSWORD
+
 # Disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
@@ -38,9 +48,14 @@ RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
 # Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Security: Make the app directory read-only for the user
+# and only allow writing to necessary directories
+RUN chmod -R 555 /app && \
+    chmod -R 777 /app/.next && \
+    chown -R nextjs:nodejs /app
 
 USER nextjs
 

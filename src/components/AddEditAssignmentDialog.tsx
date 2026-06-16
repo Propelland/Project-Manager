@@ -68,7 +68,15 @@ export const AddEditAssignmentDialog: React.FC<AddEditAssignmentDialogProps> = (
 
     console.log('Week 1 Monday found:', week1Monday.toISOString().split('T')[0]);
 
-    for (let weekNumber = 1; weekNumber <= 52; weekNumber++) {
+    // Calculate current week number
+    const currentWeekNumber = getISOWeekNumber(today);
+    console.log('Current week number:', currentWeekNumber);
+
+    // Generate week options from current week forward (up to 52 weeks total)
+    const startWeekNumber = currentWeekNumber;
+    const endWeekNumber = currentWeekNumber + 52; // Show up to 52 weeks from current week
+
+    for (let weekNumber = startWeekNumber; weekNumber <= endWeekNumber; weekNumber++) {
       // Calculate start and end dates for each week (starting on Monday)
       const startDate = new Date(week1Monday);
       startDate.setDate(week1Monday.getDate() + (weekNumber - 1) * 7);

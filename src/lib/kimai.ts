@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma';
 
 // Kimai database connection configuration
 const kimaiConfig = {
-  host: process.env.KIMAI_DB_HOST || '172.245.119.247',
-  port: parseInt(process.env.KIMAI_DB_PORT || '3308'),
-  user: process.env.KIMAI_DB_USER || 'kimaiuser',
-  password: process.env.KIMAI_DB_PASSWORD || 'kimaipassword',
-  database: process.env.KIMAI_DB_NAME || 'kimai',
+  host: process.env.KIMAI_DB_HOST,
+  port: parseInt(process.env.KIMAI_DB_PORT || '3306'),
+  user: process.env.KIMAI_DB_USER,
+  password: process.env.KIMAI_DB_PASSWORD,
+  database: process.env.KIMAI_DB_NAME,
   connectTimeout: 10000,
 };
 

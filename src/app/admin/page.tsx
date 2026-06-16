@@ -3,19 +3,31 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const ADMIN_PASSWORD = 'admin123'; // Replace with a stronger password
-
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (password === ADMIN_PASSWORD) {
-      // Set admin session
-      localStorage.setItem('admin', 'true');
+    // Use environment variable or a secure default for development
+    const securePassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123';
+    
+    if (password === securePassword) {
+      // Set admin session cookie with 1 week expiration - simplified and reliable version
+      const date = new Date();
+      date.setDate(date.getDate() + 7);
+      document.cookie = 'admin=true; expires=' + date.toUTCString() + '; path=/;';
+      
+      // Verify cookie was set
+      const cookieSet = document.cookie.indexOf('admin=true') > -1;
+      if (!cookieSet) {
+        console.error('Failed to set cookie');
+        setError('Failed to set authentication cookie. Please try again.');
+        return;
+      }
+      
       router.push('/admin/dashboard');
     } else {
       setError('Invalid password');

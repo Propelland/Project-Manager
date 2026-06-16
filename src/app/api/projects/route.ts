@@ -14,9 +14,12 @@ export async function GET() {
     });
     return NextResponse.json({ projects });
   } catch (error) {
-    console.error('Error fetching projects:', error);
+    console.error('Error fetching projects:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch projects' },
+      { error: 'Failed to fetch projects', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

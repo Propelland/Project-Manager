@@ -3,6 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { Person, Project, Assignment } from '@/types';
 import { snapToWeek } from '@/utils/calendarUtils';
 
+const API_HEADERS = {
+  'Content-Type': 'application/json',
+  'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '',
+};
+
 // Helper function to check if two assignments overlap in time
 function assignmentsOverlap(assignment1: Omit<Assignment, 'id'>, assignment2: Omit<Assignment, 'id'>): boolean {
   // Convert dates to Date objects if they are strings
@@ -111,7 +116,7 @@ interface CalendarActions {
   deletePerson: (id: string) => void;
   deleteProject: (id: string) => void;
   getPersonCapacity: (personId: string) => number;
-  validateCapacity: (personId: string, additionalPercentage?: number) => boolean;
+  validateCapacity: (personId: string, additionalPercentage?: number, startDate?: Date, endDate?: Date) => boolean;
   setSelectedWeek: (week: Date) => void;
   goToPreviousWeek: () => void;
   goToNextWeek: () => void;
@@ -142,7 +147,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ name: person.name }),
       });
 
@@ -176,7 +181,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ 
           name: project.name,
           visible: project.visible 
@@ -243,7 +248,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
 
     // Check capacity for each week before adding
     const isValid = weeklyAssignments.every(weeklyAssignment => {
-      return get().validateCapacity(weeklyAssignment.personId, weeklyAssignment.percentage);
+      return get().validateCapacity(weeklyAssignment.personId, weeklyAssignment.percentage, weeklyAssignment.startDate, weeklyAssignment.endDate);
     });
 
     if (!isValid) {
@@ -272,7 +277,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
         
         const response = await fetch('/api/assignments', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: API_HEADERS,
           body: JSON.stringify({
             personId: weeklyAssignment.personId,
             projectId: weeklyAssignment.projectId,
@@ -319,7 +324,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const assignmentsResponse = await fetch('/api/assignments', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({
           assignments: updatedAssignments.map(a => ({
             personId: a.personId,
@@ -389,8 +394,48 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     
     return maxDailyCapacity;
   },
-  validateCapacity: (personId: string, additionalPercentage: number = 0) => {
-    const currentCapacity = get().getPersonCapacity(personId);
+  validateCapacity: (personId: string, additionalPercentage: number = 0, startDate?: Date, endDate?: Date) => {
+    const state = get();
+    
+    // If start and end dates are provided, check capacity for the entire assignment duration
+    if (startDate && endDate) {
+      const normalizeToStartOfDay = (date: Date) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      };
+
+      const normalizedStart = normalizeToStartOfDay(startDate);
+      const normalizedEnd = normalizeToStartOfDay(endDate);
+      
+      // Check capacity for each day in the assignment duration
+      const currentDate = new Date(normalizedStart);
+      while (currentDate <= normalizedEnd) {
+        const dayCapacity = state.assignments.reduce((sum: number, assignment: Assignment) => {
+          if (assignment.personId === personId) {
+            const aStart = normalizeToStartOfDay(assignment.startDate);
+            const aEnd = normalizeToStartOfDay(assignment.endDate);
+            
+            if (currentDate >= aStart && currentDate <= aEnd) {
+              sum += assignment.percentage;
+            }
+          }
+          return sum;
+        }, 0);
+
+        if (dayCapacity + additionalPercentage > 150) {
+          console.warn(`Capacity limit exceeded on ${currentDate.toISOString().split('T')[0]}: ${dayCapacity} + ${additionalPercentage} = ${dayCapacity + additionalPercentage}%`);
+          return false;
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      return true;
+    }
+
+    // Fallback to checking only the currently selected week if no dates provided
+    const currentCapacity = state.getPersonCapacity(personId);
     return currentCapacity + additionalPercentage <= 150;
   },
   setSelectedWeek: (week: Date) => set({ selectedWeek: snapToWeek(week) }),
@@ -409,7 +454,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/filters', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ name, personIds }),
       });
       
@@ -429,7 +474,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/filters', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ id: filterId }),
       });
       
@@ -447,19 +492,27 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     loadData: async () => {
       try {
         // Load projects
-        const projectsResponse = await fetch('/api/projects');
+        const projectsResponse = await fetch('/api/projects', {
+          headers: API_HEADERS
+        });
         const projectsData = await projectsResponse.json();
 
         // Load users
-        const usersResponse = await fetch('/api/users');
+        const usersResponse = await fetch('/api/users', {
+          headers: API_HEADERS
+        });
         const usersData = await usersResponse.json();
 
         // Load assignments
-        const assignmentsResponse = await fetch('/api/assignments');
+        const assignmentsResponse = await fetch('/api/assignments', {
+          headers: API_HEADERS
+        });
         const assignmentsData = await assignmentsResponse.json();
 
         // Load filters
-        const filtersResponse = await fetch('/api/filters');
+        const filtersResponse = await fetch('/api/filters', {
+          headers: API_HEADERS
+        });
         const filtersData = await filtersResponse.json();
 
         // Load vacations from Kimai
@@ -467,7 +520,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
         const vacationsData = await vacationsResponse.json();
 
         // Convert assignment dates from strings to Date objects
-        const parsedAssignments = assignmentsData.assignments.map((assignment: {
+        const parsedAssignments = (assignmentsData.assignments || []).map((assignment: {
           startDate: string;
           endDate: string;
           [key: string]: unknown;
@@ -505,7 +558,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/assignments', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ id }),
       });
 
@@ -565,7 +618,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
       // Save users
       const usersResponse = await fetch('/api/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({ users: state.people }),
       });
 
@@ -576,7 +629,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
       // Save projects
       const projectsResponse = await fetch('/api/projects', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({
           projects: state.projects.map(p => ({
             id: p.id,
@@ -593,7 +646,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
       // Save assignments
       const assignmentsResponse = await fetch('/api/assignments', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: API_HEADERS,
         body: JSON.stringify({
           assignments: state.assignments.map(a => ({
             personId: a.personId,
@@ -619,6 +672,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/kimai/sync', {
         method: 'POST',
+        headers: API_HEADERS,
       });
       
       if (!response.ok) {
@@ -643,6 +697,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/kimai/users', {
         method: 'POST',
+        headers: API_HEADERS,
       });
       
       if (!response.ok) {
@@ -666,6 +721,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
     try {
       const response = await fetch('/api/kimai/projects', {
         method: 'POST',
+        headers: API_HEADERS,
       });
       
       if (!response.ok) {
@@ -686,7 +742,9 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
   },
   testKimaiConnection: async () => {
     try {
-      const response = await fetch('/api/kimai/sync');
+      const response = await fetch('/api/kimai/sync', {
+        headers: API_HEADERS
+      });
       return response.ok;
     } catch (error) {
       console.error('Error testing Kimai connection:', error);

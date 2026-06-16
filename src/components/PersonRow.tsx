@@ -19,13 +19,15 @@ interface PersonRowProps {
  * PersonRow component displays a single person's row with weekly capacity colors
  * Follows Single Responsibility Principle: only handles person row display
  */
-export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeksInfo, onPercentageChange, onDeleteAssignment, onAddAssignment, isViewOnly = false }) => {
+  export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeksInfo, onPercentageChange, onDeleteAssignment, onAddAssignment, isViewOnly = false }) => {
   const projects = useCalendarStore((state) => state.projects);
   const vacations = useCalendarStore((state) => state.vacations);
   const [showDropdowns, setShowDropdowns] = useState<{ [weekIndex: number]: boolean }>({});
   const [addingAssignment, setAddingAssignment] = useState<{ [weekIndex: number]: boolean }>({});
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedPercentage, setSelectedPercentage] = useState(50);
+  const [inputValues, setInputValues] = useState<{ [assignmentId: string]: string }>({});
+  const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
 
   const getWeekPTO = (weekStart: Date): number => {
     const d = weekStart;
@@ -265,88 +267,131 @@ export const PersonRow: React.FC<PersonRowProps> = ({ person, assignments, weeks
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center space-x-2">
+                           <div className="flex items-center space-x-2">
                             {isViewOnly ? (
                               <div className="w-20 px-2 py-1 text-sm border rounded bg-gray-100 text-gray-900 font-semibold">
                                 {assignment.percentage}
                               </div>
+                            ) : editingAssignment === assignment.id ? (
+                              // Show input with save/cancel buttons when editing
+                              <>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={inputValues[assignment.id] ?? assignment.percentage}
+                                  className="w-20 px-2 py-1 text-sm border rounded bg-white text-gray-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  onChange={(e) => {
+                                    setInputValues(prev => ({
+                                      ...prev,
+                                      [assignment.id]: e.target.value
+                                    }));
+                                  }}
+                                  autoFocus
+                                />
+                                <span className="text-sm text-gray-900 font-semibold">%</span>
+                                <button
+                                  onClick={() => {
+                                    const newPercentage = parseInt(inputValues[assignment.id] || `${assignment.percentage}`) || 0;
+                                    
+                                    const normalizedWeekStart = new Date(week.startDate);
+                                    normalizedWeekStart.setUTCHours(0, 0, 0, 0);
+                                    
+                                    const normalizedWeekEnd = new Date(week.endDate);
+                                    normalizedWeekEnd.setUTCHours(0, 0, 0, 0);
+                                    
+                                    const normalizedStart = new Date(assignment.startDate);
+                                    normalizedStart.setUTCHours(0, 0, 0, 0);
+                                    
+                                    const normalizedEnd = new Date(assignment.endDate);
+                                    normalizedEnd.setUTCHours(0, 0, 0, 0);
+                                    
+                                    const spansMultipleWeeks = normalizedStart < normalizedWeekStart || normalizedEnd > normalizedWeekEnd;
+                                    
+                                    if (spansMultipleWeeks) {
+                                      const currentWeekAssignment = {
+                                        personId: assignment.personId,
+                                        projectId: assignment.projectId,
+                                        startDate: new Date(Date.UTC(week.startDate.getFullYear(), week.startDate.getMonth(), week.startDate.getDate())),
+                                        endDate: new Date(Date.UTC(week.endDate.getFullYear(), week.endDate.getMonth(), week.endDate.getDate())),
+                                        percentage: newPercentage
+                                      };
+                                      
+                                      if (normalizedStart < normalizedWeekStart) {
+                                        const beforeWeekAssignment = {
+                                          personId: assignment.personId,
+                                          projectId: assignment.projectId,
+                                          startDate: new Date(Date.UTC(normalizedStart.getFullYear(), normalizedStart.getMonth(), normalizedStart.getDate())),
+                                          endDate: new Date(Date.UTC(normalizedWeekStart.getFullYear(), normalizedWeekStart.getMonth(), normalizedWeekStart.getDate() - 1)),
+                                          percentage: assignment.percentage
+                                        };
+                                        if (onAddAssignment) {
+                                          onAddAssignment(beforeWeekAssignment);
+                                        }
+                                      }
+                                      
+                                      if (normalizedEnd > normalizedWeekEnd) {
+                                        const afterWeekAssignment = {
+                                          personId: assignment.personId,
+                                          projectId: assignment.projectId,
+                                          startDate: new Date(Date.UTC(normalizedWeekEnd.getFullYear(), normalizedWeekEnd.getMonth(), normalizedWeekEnd.getDate() + 1)),
+                                          endDate: new Date(Date.UTC(normalizedEnd.getFullYear(), normalizedEnd.getMonth(), normalizedEnd.getDate())),
+                                          percentage: assignment.percentage
+                                        };
+                                        if (onAddAssignment) {
+                                          onAddAssignment(afterWeekAssignment);
+                                        }
+                                      }
+                                      
+                                      onDeleteAssignment?.(assignment.id);
+                                      
+                                      if (onAddAssignment) {
+                                        onAddAssignment(currentWeekAssignment);
+                                      }
+                                    } else {
+                                      onPercentageChange?.(assignment.id, newPercentage);
+                                    }
+                                    
+                                    setEditingAssignment(null);
+                                    setInputValues(prev => {
+                                      const rest = { ...prev };
+                                      delete rest[assignment.id];
+                                      return rest;
+                                    });
+                                  }}
+                                  className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingAssignment(null);
+                                    setInputValues(prev => {
+                                      const rest = { ...prev };
+                                      delete rest[assignment.id];
+                                      return rest;
+                                    });
+                                  }}
+                                  className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                                >
+                                  Cancel
+                                </button>
+                              </>
                             ) : (
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={assignment.percentage}
-                                className="w-20 px-2 py-1 text-sm border rounded bg-white text-gray-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                onChange={(e) => {
-                                  // If assignment spans multiple weeks, split it into individual week assignment
-                                  const normalizedWeekStart = new Date(week.startDate);
-                                  normalizedWeekStart.setUTCHours(0, 0, 0, 0);
-                                  
-                                  const normalizedWeekEnd = new Date(week.endDate);
-                                  normalizedWeekEnd.setUTCHours(0, 0, 0, 0);
-                                  
-                                  const normalizedStart = new Date(assignment.startDate);
-                                  normalizedStart.setUTCHours(0, 0, 0, 0);
-                                  
-                                  const normalizedEnd = new Date(assignment.endDate);
-                                  normalizedEnd.setUTCHours(0, 0, 0, 0);
-                                  
-                                  // Check if assignment spans beyond current week
-                                  const spansMultipleWeeks = normalizedStart < normalizedWeekStart || normalizedEnd > normalizedWeekEnd;
-                                  
-                                  if (spansMultipleWeeks) {
-                                    // Split assignment for current week only
-                                    const newPercentage = parseInt(e.target.value) || 0;
-                                    const currentWeekAssignment = {
-                                      personId: assignment.personId,
-                                      projectId: assignment.projectId,
-                                      startDate: new Date(Date.UTC(week.startDate.getFullYear(), week.startDate.getMonth(), week.startDate.getDate())),
-                                      endDate: new Date(Date.UTC(week.endDate.getFullYear(), week.endDate.getMonth(), week.endDate.getDate())),
-                                      percentage: newPercentage
-                                    };
-                                    
-                                    // Create new assignments for weeks before and after current week
-                                    if (normalizedStart < normalizedWeekStart) {
-                                      const beforeWeekAssignment = {
-                                        personId: assignment.personId,
-                                        projectId: assignment.projectId,
-                                        startDate: new Date(Date.UTC(normalizedStart.getFullYear(), normalizedStart.getMonth(), normalizedStart.getDate())),
-                                        endDate: new Date(Date.UTC(normalizedWeekStart.getFullYear(), normalizedWeekStart.getMonth(), normalizedWeekStart.getDate() - 1)),
-                                        percentage: assignment.percentage
-                                      };
-                                      if (onAddAssignment) {
-                                        onAddAssignment(beforeWeekAssignment);
-                                      }
-                                    }
-                                    
-                                    if (normalizedEnd > normalizedWeekEnd) {
-                                      const afterWeekAssignment = {
-                                        personId: assignment.personId,
-                                        projectId: assignment.projectId,
-                                        startDate: new Date(Date.UTC(normalizedWeekEnd.getFullYear(), normalizedWeekEnd.getMonth(), normalizedWeekEnd.getDate() + 1)),
-                                        endDate: new Date(Date.UTC(normalizedEnd.getFullYear(), normalizedEnd.getMonth(), normalizedEnd.getDate())),
-                                        percentage: assignment.percentage
-                                      };
-                                      if (onAddAssignment) {
-                                        onAddAssignment(afterWeekAssignment);
-                                      }
-                                    }
-                                    
-                                    // Delete original assignment
-                                    onDeleteAssignment?.(assignment.id);
-                                    
-                                    // Add new assignment for current week
-                                    if (onAddAssignment) {
-                                      onAddAssignment(currentWeekAssignment);
-                                    }
-                                  } else {
-                                    // Update percentage normally if assignment is only for this week
-                                    onPercentageChange?.(assignment.id, parseInt(e.target.value) || 0);
-                                }
-                              }}
-                            />
+                              // Show read-only value with edit button
+                              <>
+                                <div className="w-20 px-2 py-1 text-sm border rounded bg-gray-100 text-gray-900 font-semibold">
+                                  {assignment.percentage}
+                                </div>
+                                <span className="text-sm text-gray-900 font-semibold">%</span>
+                                <button
+                                  onClick={() => setEditingAssignment(assignment.id)}
+                                  className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                                >
+                                  Edit
+                                </button>
+                              </>
                             )}
-                            <span className="text-sm text-gray-900 font-semibold">%</span>
                           </div>
                         </div>
                       );

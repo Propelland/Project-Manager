@@ -120,7 +120,7 @@ src/
 - ✅ Compiles without errors
 - ✅ Updated documentation with week navigation, 4-week view, and project legend
 
-version 0.1.0
+version 0.2.0
 
 
 > for deploy 
