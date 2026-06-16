@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Person } from '@/types';
 import { PersonRow } from '@/components/PersonRow';
 import { AddEditPersonDialog } from '@/components/AddEditPersonDialog';
@@ -10,7 +11,7 @@ import { useCalendarStore } from '@/stores/calendarStore';
 import { getWeekInfo } from '@/utils/calendarUtils';
 
 export default function Home() {
-  const { people, projects, assignments, updateAssignment, addAssignment, selectedWeek, goToPreviousWeek, goToNextWeek, goToToday, loadData, deleteAssignment, updateProject, updateProjectColor, deletePerson, deleteProject, syncWithKimai, syncKimaiUsers, syncKimaiProjects, savedFilters, saveFilter, deleteFilter } = useCalendarStore();
+  const { people, projects, assignments, vacations, updateAssignment, addAssignment, selectedWeek, goToPreviousWeek, goToNextWeek, goToToday, loadData, deleteAssignment, updateProject, updateProjectColor, deletePerson, deleteProject, syncWithKimai, syncKimaiUsers, syncKimaiProjects, savedFilters, saveFilter, deleteFilter } = useCalendarStore();
 
   const [personDialogOpen, setPersonDialogOpen] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -78,6 +79,62 @@ export default function Home() {
     }
   }, [selectedPeople, people]);
   
+  const handleExport = () => {
+    const year = new Date().getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
+
+    const rows: { Person: string; Project: string; 'Week Start': string; 'Week End': string; Percentage: number }[] = [];
+
+    // Generate all Monday-starting weeks for the year
+    const weeks: { start: Date; end: Date }[] = [];
+    const cursor = new Date(yearStart);
+    const day = cursor.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    cursor.setDate(cursor.getDate() + diff);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= yearEnd) {
+      const end = new Date(cursor);
+      end.setDate(cursor.getDate() + 6);
+      weeks.push({ start: new Date(cursor), end });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    for (const person of people.filter(p => p.enabled !== false)) {
+      for (const week of weeks) {
+        const weekKey = fmt(week.start);
+
+        // PTO
+        const pto = vacations[person.id]?.[weekKey] || 0;
+        if (pto > 0) {
+          rows.push({ Person: person.name, Project: 'PTO', 'Week Start': weekKey, 'Week End': fmt(week.end), Percentage: pto });
+        }
+
+        // Assignments overlapping this week
+        const weekAssignments = assignments.filter(a => {
+          if (a.personId !== person.id) return false;
+          const s = new Date(a.startDate); s.setHours(0, 0, 0, 0);
+          const e = new Date(a.endDate); e.setHours(0, 0, 0, 0);
+          return s <= week.end && e >= week.start;
+        });
+
+        for (const a of weekAssignments) {
+          const project = projects.find(p => p.id === a.projectId);
+          const projectName = project?.customer || project?.name || 'Unknown';
+          rows.push({ Person: person.name, Project: projectName, 'Week Start': weekKey, 'Week End': fmt(week.end), Percentage: a.percentage });
+        }
+      }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Assignments');
+    XLSX.writeFile(wb, `assignments-${year}.xlsx`);
+  };
+
   // Handle admin login
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,6 +292,13 @@ export default function Home() {
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
               >
                 Sync with Kimai
+              </button>
+
+              <button
+                onClick={handleExport}
+                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+              >
+                Export {new Date().getFullYear()} (.xlsx)
               </button>
 
             </>
