@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { syncKimaiUsers, syncKimaiProjects, testKimaiConnection } from '@/lib/kimai';
+import { syncKimaiUsers, syncKimaiProjects, syncKimaiAbsences, testKimaiConnection } from '@/lib/kimai';
 
 export async function POST() {
   try {
@@ -14,13 +14,14 @@ export async function POST() {
 
     console.log('Starting Kimai synchronization...');
 
-    // Synchronize users and projects in parallel
+    // Synchronize users, projects, and absences
     const [usersResult, projectsResult] = await Promise.all([
       syncKimaiUsers(),
       syncKimaiProjects(),
     ]);
+    const absencesCount = await syncKimaiAbsences();
 
-    console.log(`Synchronization completed: ${usersResult.length} users, ${projectsResult.length} projects`);
+    console.log(`Synchronization completed: ${usersResult.length} users, ${projectsResult.length} projects, ${absencesCount} absences`);
 
     return NextResponse.json({
       success: true,
@@ -31,6 +32,9 @@ export async function POST() {
       projects: {
         count: projectsResult.length,
         data: projectsResult,
+      },
+      absences: {
+        count: absencesCount,
       },
     });
   } catch (error) {
@@ -57,6 +61,7 @@ export async function GET() {
       syncKimaiUsers(),
       syncKimaiProjects(),
     ]);
+    const absencesCount = await syncKimaiAbsences();
 
     return NextResponse.json({
       connected: true,
@@ -67,6 +72,9 @@ export async function GET() {
       projects: {
         count: projectsResult.length,
         data: projectsResult,
+      },
+      absences: {
+        count: absencesCount,
       },
     });
   } catch (error) {

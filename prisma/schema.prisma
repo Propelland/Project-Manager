@@ -12,6 +12,7 @@ model Person {
   name  String
   enabled Boolean @default(true)
   assignments Assignment[]
+  absences    Absence[]
 
   @@map("people")
 }
@@ -40,6 +41,17 @@ model Assignment {
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("assignments")
+}
+
+model Absence {
+  id        String   @id @default(cuid())
+  personId  String
+  date      DateTime
+  halfDay   Boolean  @default(false)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, date])
+  @@map("absences")
 }
 
 model Filter {

@@ -190,6 +190,35 @@ export async function getAbsencesGrouped(): Promise<Record<string, Record<string
   return result;
 }
 
+// Sync Kimai absences into the local PM database
+export async function syncKimaiAbsences(): Promise<number> {
+  const pool = await getKimaiConnection();
+  const [rows] = await pool.execute(`
+    SELECT user_id, date, half_day
+    FROM kimai2_absence
+    WHERE type = 'holiday'
+  `);
+
+  const absences = rows as { user_id: number; date: Date; half_day: number }[];
+  let synced = 0;
+
+  for (const row of absences) {
+    const personId = row.user_id.toString();
+    const person = await prisma.person.findUnique({ where: { id: personId } });
+    if (!person) continue;
+
+    await prisma.absence.upsert({
+      where: { personId_date: { personId, date: new Date(row.date) } },
+      update: { halfDay: Boolean(row.half_day) },
+      create: { personId, date: new Date(row.date), halfDay: Boolean(row.half_day) },
+    });
+    synced++;
+  }
+
+  console.log(`Synchronized ${synced} absences from Kimai`);
+  return synced;
+}
+
 // Function to test Kimai connection
 export async function testKimaiConnection() {
   try {
