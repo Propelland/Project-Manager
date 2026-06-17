@@ -109,7 +109,7 @@ export default function Home() {
         // PTO
         const pto = vacations[person.id]?.[weekKey] || 0;
         if (pto > 0) {
-          rows.push({ Person: person.name, Project: 'PTO', 'Week Start': weekKey, 'Week End': fmt(week.end), Percentage: pto });
+          rows.push({ Person: person.name, Project: 'PTO Kimai', 'Week Start': weekKey, 'Week End': fmt(week.end), Percentage: pto });
         }
 
         // Assignments overlapping this week

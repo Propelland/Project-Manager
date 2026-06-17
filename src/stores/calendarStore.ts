@@ -516,7 +516,7 @@ export const useCalendarStore = create<CalendarState & CalendarActions>()(
         const filtersData = await filtersResponse.json();
 
         // Load vacations from Kimai
-        const vacationsResponse = await fetch('/api/absences');
+        const vacationsResponse = await fetch('/api/absences', { headers: API_HEADERS });
         const vacationsData = await vacationsResponse.json();
 
         // Convert assignment dates from strings to Date objects

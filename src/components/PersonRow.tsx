@@ -120,7 +120,7 @@ interface PersonRowProps {
                 <div className="space-y-1">
                   {pto > 0 && (
                     <div className="flex justify-between items-center text-sm">
-                      <span className="flex-1 text-left">🏖️ PTO</span>
+                      <span className="flex-1 text-left">🏖️ PTO Kimai</span>
                       <span className="ml-2 font-semibold">{pto}%</span>
                     </div>
                   )}
@@ -191,7 +191,7 @@ interface PersonRowProps {
                       <div className="p-3 bg-teal-50 rounded-lg flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="w-3 h-3 rounded bg-teal-400"></div>
-                          <div className="text-sm text-gray-700">🏖️ PTO</div>
+                          <div className="text-sm text-gray-700">🏖️ PTO Kimai</div>
                         </div>
                         <div className="text-sm font-semibold text-teal-700">{pto}%</div>
                       </div>
